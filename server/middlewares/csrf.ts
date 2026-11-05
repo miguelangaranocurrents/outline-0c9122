@@ -21,17 +21,24 @@ export function attachCSRFToken() {
   return async function attachCSRFTokenMiddleware(ctx: AppContext, next: Next) {
     // Only attach tokens for safe methods that don't mutate state
     if (["GET", "HEAD", "OPTIONS"].includes(ctx.method)) {
-      const raw = generateRawToken(16);
-      const bundled = bundleToken(raw, env.SECRET_KEY);
+      // Keep a valid token that is already set. Rotating it on every safe
+      // request would invalidate tokens already embedded in in-flight forms,
+      // such as the presigned upload of a file import, when other requests
+      // (e.g. lazily loaded assets) complete in the meantime.
+      const existing = getTokenFromCookie(ctx);
+      if (!existing || !unbundleToken(existing, env.SECRET_KEY).valid) {
+        const raw = generateRawToken(16);
+        const bundled = bundleToken(raw, env.SECRET_KEY);
 
-      // Set cookie that JavaScript can read (not HttpOnly). Unlike the UI hint
-      // cookies, this one is deliberately host-only and never scoped to the
-      // base domain
-      ctx.cookies.set(getCookieName(ctx), bundled, {
-        httpOnly: false,
-        sameSite: "lax",
-        secure: ctx.request.secure,
-      });
+        // Set cookie that JavaScript can read (not HttpOnly). Unlike the UI
+        // hint cookies, this one is deliberately host-only and never scoped to
+        // the base domain
+        ctx.cookies.set(getCookieName(ctx), bundled, {
+          httpOnly: false,
+          sameSite: "lax",
+          secure: ctx.request.secure,
+        });
+      }
     }
 
     await next();

@@ -411,6 +411,10 @@ class UiStore {
     } else {
       this.rightSidebar = panel;
     }
+
+    // Persist so that the stored panel is not left stale when other settings
+    // are saved, which would otherwise restore a closed panel on reload.
+    this.persist();
   };
 
   @action
